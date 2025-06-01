@@ -1,6 +1,6 @@
 <?php
 // auth.php
-session_start();
+// session_start(); // DIHAPUSKAN: Sesi sudah dimulakan oleh config/database.php
 include_once 'config/database.php'; // Includes database connection and session_start()
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
