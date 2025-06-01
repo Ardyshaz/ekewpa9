@@ -100,6 +100,8 @@ if (isset($_GET['id'])) {
 
                 if ($asset_id_to_return && $actual_return_date) {
                     try {
+                        $pdo->beginTransaction(); // Mulakan transaksi untuk kemas kini aset dan status permohonan
+
                         $stmtReturnAsset = $pdo->prepare("UPDATE assets SET actual_return_date = :actual_return_date, notes = :notes, status = 'returned' WHERE asset_id = :asset_id AND application_id = :application_id");
                         $stmtReturnAsset->bindParam(':actual_return_date', $actual_return_date);
                         $stmtReturnAsset->bindParam(':notes', $return_notes);
@@ -107,19 +109,39 @@ if (isset($_GET['id'])) {
                         $stmtReturnAsset->bindParam(':application_id', $id, PDO::PARAM_INT); // Ensure asset belongs to this application
 
                         if ($stmtReturnAsset->execute()) {
+                            // Semak jika semua aset untuk permohonan ini telah dipulangkan
+                            $stmtCheckAllReturned = $pdo->prepare("SELECT COUNT(*) FROM assets WHERE application_id = :application_id AND status != 'returned'");
+                            $stmtCheckAllReturned->bindParam(':application_id', $id, PDO::PARAM_INT);
+                            $stmtCheckAllReturned->execute();
+                            $remaining_unreturned_assets = $stmtCheckAllReturned->fetchColumn();
+
+                            $application_updated_to_completed = false;
+                            if ($remaining_unreturned_assets == 0) {
+                                // Jika semua aset telah dipulangkan, kemas kini status permohonan utama
+                                $stmtUpdateAppStatus = $pdo->prepare("UPDATE applications SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE application_id = :application_id AND status != 'completed'");
+                                $stmtUpdateAppStatus->bindParam(':application_id', $id, PDO::PARAM_INT);
+                                if ($stmtUpdateAppStatus->execute()) {
+                                    $application_updated_to_completed = true;
+                                }
+                            }
+
+                            $pdo->commit(); // Selesaikan transaksi
+
                             if ($is_ajax_request) {
                                 header('Content-Type: application/json');
                                 echo json_encode([
                                     'status' => 'success',
-                                    'message' => 'Aset berjaya dipulangkan.',
+                                    'message' => 'Aset berjaya dipulangkan.' . ($application_updated_to_completed ? ' Permohonan telah lengkap.' : ''),
                                     'asset_id' => $asset_id_to_return,
                                     'actual_return_date' => $actual_return_date,
-                                    'notes' => $return_notes
+                                    'notes' => $return_notes,
+                                    'application_status_changed_to_completed' => $application_updated_to_completed // Hantar status ini ke JS
                                 ]);
                                 exit();
                             }
-                            $success_message = 'Aset berjaya dipulangkan.';
+                            $success_message = 'Aset berjaya dipulangkan.' . ($application_updated_to_completed ? ' Permohonan telah lengkap.' : '');
                         } else {
+                             $pdo->rollBack();
                              if ($is_ajax_request) {
                                 header('Content-Type: application/json');
                                 echo json_encode(['status' => 'error', 'message' => 'Gagal memulangkan aset.']);
@@ -128,6 +150,7 @@ if (isset($_GET['id'])) {
                             $error_message = 'Gagal memulangkan aset.';
                         }
                     } catch (PDOException $e) {
+                         $pdo->rollBack();
                          if ($is_ajax_request) {
                             header('Content-Type: application/json');
                             echo json_encode(['status' => 'error', 'message' => 'Ralat pangkalan data semasa memulangkan aset: ' . $e->getMessage()]);
@@ -246,6 +269,7 @@ if (!$is_ajax_request) {
                             case 'approved': echo 'bg-green-600 text-white'; break;
                             case 'rejected': echo 'bg-red-600 text-white'; break;
                             case 'draft': echo 'bg-gray-600 text-white'; break;
+                            case 'completed': echo 'bg-gray-600 text-white'; break; // Kelas baru untuk status 'completed'
                             default: echo 'bg-gray-600 text-white'; break;
                         }
                         ?>">
@@ -255,6 +279,7 @@ if (!$is_ajax_request) {
                                 case 'approved': echo 'Diluluskan'; break;
                                 case 'rejected': echo 'Ditolak'; break;
                                 case 'draft': echo 'Draf'; break;
+                                case 'completed': echo 'Lengkap'; break; // Teks baru untuk status 'completed'
                                 default: echo ucfirst(htmlspecialchars($application['status'])); break;
                             }
                         ?>
@@ -360,7 +385,7 @@ if (!$is_ajax_request) {
                         <p class="text-xs text-gray-500">Tarikh: <?php echo htmlspecialchars($signatures['approver']['signature_date']); ?></p>
                     <?php else: ?>
                         <div class="h-24 w-full bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500 rounded-md">Tiada Tandatangan</div>
-                        <?php if ($isAdmin && $application['status'] === 'approved' && !isset($signatures['approver'])): ?>
+                        <?php if ($isAdmin && ($application['status'] === 'approved' || $application['status'] === 'completed') && !isset($signatures['approver'])): ?>
                             <button type="button" class="mt-4 bg-purple-600 hover:bg-purple-700 text-white text-sm py-2 px-4 rounded-lg shadow-md sign-button" data-role="approver" data-app-id="<?php echo $application['application_id']; ?>">
                                 Tandatangan sebagai Pelulus
                             </button>
@@ -377,7 +402,7 @@ if (!$is_ajax_request) {
                         <p class="text-xs text-gray-500">Tarikh: <?php echo htmlspecialchars($signatures['returner']['signature_date']); ?></p>
                     <?php else: ?>
                         <div class="h-24 w-full bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500 rounded-md">Tiada Tandatangan</div>
-                        <?php if ($isAdmin && $application['status'] === 'approved' && !isset($signatures['returner'])): ?>
+                        <?php if ($isAdmin && ($application['status'] === 'approved' || $application['status'] === 'completed') && !isset($signatures['returner'])): ?>
                             <button type="button" class="mt-4 bg-yellow-600 hover:bg-yellow-700 text-white text-sm py-2 px-4 rounded-lg shadow-md sign-button" data-role="returner" data-app-id="<?php echo $application['application_id']; ?>">
                                 Tandatangan sebagai Pemulang
                             </button>
@@ -394,7 +419,7 @@ if (!$is_ajax_request) {
                         <p class="text-xs text-gray-500">Tarikh: <?php echo htmlspecialchars($signatures['receiver']['signature_date']); ?></p>
                     <?php else: ?>
                         <div class="h-24 w-full bg-gray-100 border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-500 rounded-md">Tiada Tandatangan</div>
-                        <?php if ($isAdmin && $application['status'] === 'approved' && !isset($signatures['receiver'])): ?>
+                        <?php if ($isAdmin && ($application['status'] === 'approved' || $application['status'] === 'completed') && !isset($signatures['receiver'])): ?>
                             <button type="button" class="mt-4 bg-orange-600 hover:bg-orange-700 text-white text-sm py-2 px-4 rounded-lg shadow-md sign-button" data-role="receiver" data-app-id="<?php echo $application['application_id']; ?>">
                                 Tandatangan sebagai Penerima
                             </button>
@@ -405,7 +430,7 @@ if (!$is_ajax_request) {
         </div>
 
         <?php
-        // Only show admin actions if logged in as admin
+        // Hanya tunjukkan tindakan pentadbir jika log masuk sebagai admin DAN status bukan 'completed'
         if ($isAdmin && ($application['status'] === 'submitted' || $application['status'] === 'approved' || $application['status'] === 'rejected')):
         ?>
         <div class="mt-10 pt-6 border-t border-gray-200">
