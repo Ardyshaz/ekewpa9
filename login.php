@@ -1,6 +1,6 @@
 <?php
 // login.php
-session_start(); // Ensure session is started for messages
+// session_start(); // DIHAPUSKAN: Sesi sudah dimulakan oleh config/database.php
 
 // Redirect if already logged in
 if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'admin') {
