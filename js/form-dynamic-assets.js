@@ -104,6 +104,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             fetch('process.php', {
                 method: 'POST',
+                // TAMBAH HEADERS UNTUK MENUNJUKKAN INI ADALAH PERMINTAAN AJAX
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: formData
             })
             .then(response => {
