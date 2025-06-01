@@ -91,7 +91,7 @@ if (isset($_GET['id'])) {
                     $error_message = 'Tindakan status tidak sah atau ID permohonan tidak sepadan.';
                 }
             }
-            
+
             // Handle POST request for asset return (only if admin)
             if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['asset_id_to_return']) && isset($_POST['actual_return_date'])) {
                 $asset_id_to_return = filter_input(INPUT_POST, 'asset_id_to_return', FILTER_VALIDATE_INT);
@@ -262,7 +262,7 @@ if (!$is_ajax_request) {
                 <div><span class="font-semibold">Nama Pengeluar:</span> <?php echo htmlspecialchars($application['issuer_name'] ?: 'N/A'); ?></div>
                 <div class="md:col-span-2">
                     <span class="font-semibold">Status Permohonan:</span>
-                    <span id="application-status" class="px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full 
+                    <span id="application-status" class="px-3 py-1 inline-flex text-sm leading-5 font-bold rounded-full
                         <?php
                         switch ($application['status']) {
                             case 'submitted': echo 'bg-blue-600 text-white'; break;
@@ -315,7 +315,7 @@ if (!$is_ajax_request) {
                                     <td class="py-3 px-4 text-sm text-gray-800"><?php echo htmlspecialchars($asset['loan_date']); ?></td>
                                     <td class="py-3 px-4 text-sm text-gray-800"><?php echo htmlspecialchars($asset['expected_return_date']); ?></td>
                                     <td class="py-3 px-4 text-sm text-gray-800">
-                                        <span id="asset-status-<?php echo $asset['asset_id']; ?>" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        <span id="asset-status-<?php echo $asset['asset_id']; ?>" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
                                             <?php
                                             switch ($asset['status']) {
                                                 case 'pending': echo 'bg-orange-100 text-orange-800'; break;
@@ -430,7 +430,8 @@ if (!$is_ajax_request) {
         </div>
 
         <?php
-        // Hanya tunjukkan tindakan pentadbir jika log masuk sebagai admin DAN status bukan 'completed'
+        // Only show admin actions if logged in as admin AND status is not 'completed'
+        // 'completed' is a new status, so we exclude it from these mutable actions
         if ($isAdmin && ($application['status'] === 'submitted' || $application['status'] === 'approved' || $application['status'] === 'rejected')):
         ?>
         <div class="mt-10 pt-6 border-t border-gray-200">
@@ -438,7 +439,7 @@ if (!$is_ajax_request) {
             <form id="statusUpdateForm" method="POST" class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
                 <input type="hidden" name="application_id" value="<?php echo htmlspecialchars($application['application_id']); ?>">
                 <input type="hidden" name="current_status" value="<?php echo htmlspecialchars($application['status']); ?>">
-                
+
                 <?php if ($application['status'] === 'submitted'): ?>
                     <button type="submit" name="status_action" value="approved" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
                         Luluskan Permohonan
