@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalSaveSignatureBtn = document.getElementById('modalSaveSignature');
     const closeModalBtn = document.getElementById('closeModal');
     const modalApplicationIdInput = document.getElementById('modalApplicationId');
-    const modalSignatureRoleInput = document.getElementById('modalSignatureRole'); // Corrected this line
+    const modalSignatureRoleInput = document.getElementById('modalSignatureRole');
     const modalRoleNameSpan = document.getElementById('modalRoleName');
     const modalSignerNameInput = document.getElementById('modalSignerName');
     const modalSignerPositionInput = document.getElementById('modalSignerPosition');
@@ -109,10 +109,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const formData = new FormData(statusUpdateForm);
             const applicationId = formData.get('application_id');
-            const statusAction = formData.get('status_action');
+
+            // MENDAPATKAN NILAI status_action DENGAN BETUL DARI BUTANG YANG DIKLIK
+            let statusAction = '';
+            const clickedButton = event.submitter;
+            if (clickedButton && clickedButton.name === 'status_action') {
+                statusAction = clickedButton.value;
+            }
 
             if (!applicationId || !statusAction) {
-                console.error('Missing application ID or status action.');
+                console.error('Missing application ID or status action. applicationId:', applicationId, 'statusAction:', statusAction);
                 displayMessage('Ralat: ID permohonan atau tindakan status tidak lengkap.', 'error');
                 return;
             }
@@ -201,7 +207,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
 
-
                     // If application is approved, enable return buttons for assets
                     if (currentStatusValue === 'approved') {
                         document.querySelectorAll('.return-asset-button').forEach(btn => {
@@ -224,8 +229,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .finally(() => {
                 submitButtons.forEach(button => {
                     button.disabled = false;
-                    // Restore original button text if needed, or handle in the success block more specifically
-                    // For simplicity, this just re-enables. Text content is handled above.
                     button.classList.remove('opacity-75', 'cursor-not-allowed');
                 });
             });
@@ -416,7 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .then(data => {
                     if (data.status === 'success') {
-                        displayMessage('Aset berjaya dipulangkan!', 'success');
+                        displayMessage(data.message, 'success');
                         if(returnAssetModal) returnAssetModal.classList.add('hidden');
 
                         // Update the specific asset row on the page
@@ -439,8 +442,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (returnButton) {
                             returnButton.remove(); // Remove the button after asset is returned
                         }
+
+                        // KEMAS KINI STATUS PERMOHONAN UTAMA JIKA SEMUA ASET TELAH DIPULANGKAN
+                        if (data.application_status_changed_to_completed) {
+                            if (applicationStatusSpan) {
+                                applicationStatusSpan.textContent = 'Lengkap';
+                                applicationStatusSpan.className = applicationStatusSpan.className.split(' ').filter(c => !c.startsWith('bg-') && !c.startsWith('text-')).join(' ');
+                                applicationStatusSpan.classList.add('bg-gray-600', 'text-white'); // Contoh kelas untuk status lengkap
+                            }
+                            // Anda mungkin ingin menyembunyikan borang tindakan status jika permohonan lengkap
+                            if (statusUpdateForm) {
+                                statusUpdateForm.style.display = 'none';
+                            }
+                        }
                         // Optionally reload if there are other dependent changes
-                        // window.location.reload(); 
+                        // window.location.reload();
 
                     } else {
                         displayMessage('Ralat pemulangan aset: ' + (data.message || 'Unknown error'), 'error');
